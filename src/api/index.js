@@ -16,6 +16,11 @@ export const fetchProfile = async () => {
   return res.data;
 };
 
+export const updateProfile = async (data) => {
+  const res = await axiosInstance.put('/users/profile', data);
+  return res.data;
+};
+
 // Lost & Found API
 export const fetchLostFoundItems = async () => {
   const res = await axiosInstance.get('/lost-found');

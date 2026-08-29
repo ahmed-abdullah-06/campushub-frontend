@@ -196,14 +196,14 @@ export const AppProvider = ({ children }) => {
           api.fetchAdminUsers()
         ]);
 
-        if (lfData.status === 'fulfilled' && Array.isArray(lfData.value) && lfData.value.length > 0) setLostItems(lfData.value);
-        if (mpData.status === 'fulfilled' && Array.isArray(mpData.value) && mpData.value.length > 0) setMarketplaceItems(mpData.value);
-        if (evData.status === 'fulfilled' && Array.isArray(evData.value) && evData.value.length > 0) setEvents(evData.value);
-        if (ntData.status === 'fulfilled' && Array.isArray(ntData.value) && ntData.value.length > 0) setNotes(ntData.value);
-        if (skData.status === 'fulfilled' && Array.isArray(skData.value) && skData.value.length > 0) setSkills(skData.value);
-        if (notifData.status === 'fulfilled' && Array.isArray(notifData.value) && notifData.value.length > 0) setNotifications(notifData.value);
-        if (repData.status === 'fulfilled' && Array.isArray(repData.value) && repData.value.length > 0) setAdminReports(repData.value);
-        if (usrData.status === 'fulfilled' && Array.isArray(usrData.value) && usrData.value.length > 0) setAdminUsers(usrData.value);
+        if (lfData.status === 'fulfilled' && Array.isArray(lfData.value)) setLostItems(lfData.value);
+        if (mpData.status === 'fulfilled' && Array.isArray(mpData.value)) setMarketplaceItems(mpData.value);
+        if (evData.status === 'fulfilled' && Array.isArray(evData.value)) setEvents(evData.value);
+        if (ntData.status === 'fulfilled' && Array.isArray(ntData.value)) setNotes(ntData.value);
+        if (skData.status === 'fulfilled' && Array.isArray(skData.value)) setSkills(skData.value);
+        if (notifData.status === 'fulfilled' && Array.isArray(notifData.value)) setNotifications(notifData.value);
+        if (repData.status === 'fulfilled' && Array.isArray(repData.value)) setAdminReports(repData.value);
+        if (usrData.status === 'fulfilled' && Array.isArray(usrData.value)) setAdminUsers(usrData.value);
       } catch (err) {
         console.warn('Backend API sync notice: running with current state cache.', err);
       }
@@ -419,10 +419,22 @@ export const AppProvider = ({ children }) => {
       await api.toggleUserSuspendApi(id);
     } catch (err) { console.error(err); }
   };
+  
+  const updateProfile = async (updates) => {
+  try {
+    const data = await api.updateProfile(updates);
+    setCurrentUser(data);
+    localStorage.setItem('user', JSON.stringify(data));
+    return { success: true };
+  } catch (err) {
+    return { success: false, message: err.response?.data?.message || 'Failed to update profile' };
+  }
+};
+
 
     return (
     <AppContext.Provider value={{
-      currentUser, authLoading, login, register, logout, setCurrentUser,
+      currentUser, authLoading,updateProfile, login, register, logout, setCurrentUser,
       lostItems, addLostItem, toggleLostStatus,
       marketplaceItems, addMarketplaceItem, markMarketplaceSold,
       events, addEvent, toggleEventRegister,
