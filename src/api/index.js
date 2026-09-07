@@ -148,7 +148,21 @@ export const fetchAdminUsers = async () => {
   return res.data;
 };
 
+export const fetchAdminStats = async () => {
+  const res = await axiosInstance.get('/admin/stats');
+  return res.data;
+};
+
 export const toggleUserSuspendApi = async (id) => {
   const res = await axiosInstance.put(`/admin/users/${id}/suspend`);
   return res.data;
+};
+
+export const uploadImage = async (file) => {
+  const formData = new FormData();
+  formData.append('image', file);
+  const res = await axiosInstance.post('/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return res.data; // { imageUrl: "http://localhost:5000/uploads/..." }
 };
