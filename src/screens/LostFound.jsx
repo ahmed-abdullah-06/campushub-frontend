@@ -2,13 +2,16 @@ import React, { useState } from 'react';
 import { 
   Box, Grid, Card, CardMedia, CardContent, Typography, Button, 
   TextField, Select, MenuItem, Chip, Stack, Avatar, Dialog, 
-  DialogTitle, DialogContent, DialogActions, FormControl, InputLabel 
+  DialogTitle, DialogContent, DialogActions, FormControl, InputLabel,
+  CircularProgress
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import UploadIcon from '@mui/icons-material/CloudUpload';
 import { useApp } from '../context/AppContext';
+import * as api from '../api';
 
 export default function LostFound() {
   const { lostItems, addLostItem, toggleLostStatus } = useApp();
@@ -20,6 +23,23 @@ export default function LostFound() {
   const [form, setForm] = useState({
     title: '', type: 'lost', category: 'Electronics', location: '', description: '', image: ''
   });
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  const handleImageSelect = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError('');
+    try {
+      const { imageUrl } = await api.uploadImage(file);
+      setForm((prev) => ({ ...prev, image: imageUrl }));
+    } catch (err) {
+      setUploadError(err.response?.data?.message || 'Upload failed. Try a smaller image.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleCreateSubmit = (e) => {
     e.preventDefault();
@@ -194,12 +214,31 @@ export default function LostFound() {
               value={form.description} 
               onChange={(e) => setForm({ ...form, description: e.target.value })} 
             />
-            <TextField 
-              label="Image URL (Optional)" 
-              fullWidth 
-              value={form.image} 
-              onChange={(e) => setForm({ ...form, image: e.target.value })} 
-            />
+            <Box>
+              <Button
+                component="label"
+                variant="outlined"
+                startIcon={uploading ? <CircularProgress size={16} /> : <UploadIcon />}
+                disabled={uploading}
+                fullWidth
+              >
+                {uploading ? 'Uploading...' : form.image ? 'Change Photo' : 'Add a Photo (Optional)'}
+                <input type="file" accept="image/*" hidden onChange={handleImageSelect} />
+              </Button>
+              {uploadError && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+                  {uploadError}
+                </Typography>
+              )}
+              {form.image && (
+                <Box
+                  component="img"
+                  src={form.image}
+                  alt="Preview"
+                  sx={{ mt: 1, width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 1 }}
+                />
+              )}
+            </Box>
           </DialogContent>
           <DialogActions sx={{ p: 2 }}>
             <Button onClick={() => setOpenCreate(false)}>Cancel</Button>

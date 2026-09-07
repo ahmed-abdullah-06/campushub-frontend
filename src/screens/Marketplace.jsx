@@ -107,7 +107,7 @@ export default function Marketplace() {
             <TextField label="Title" required fullWidth value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             <TextField label="Price ($)" type="number" required fullWidth value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
             <TextField label="Description" multiline rows={3} required fullWidth value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            <TextField label="Image URL" fullWidth value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} />
+            <TextField label="Image URL" fullWidth value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} sx={{ display: 'none' }} />
           </DialogContent>
           <DialogActions sx={{ p: 2 }}>
             <Button onClick={() => setOpenCreate(false)}>Cancel</Button>
