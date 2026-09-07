@@ -36,17 +36,17 @@ export default function MainLayout({ currentScreen, onNavigate, children }) {
   const unreadCount = notifications ? notifications.filter(n => !(n.read || n.isRead)).length : 0;
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: <HomeIcon /> },
-    { id: 'lost-found', label: 'Lost & Found', icon: <LocationOnIcon /> },
-    { id: 'marketplace', label: 'Marketplace', icon: <ShoppingBagIcon /> },
-    { id: 'skills', label: 'Skill Exchange', icon: <BoltIcon /> },
-    { id: 'events', label: 'Events', icon: <EventIcon /> },
-    { id: 'notes', label: 'Notes', icon: <MenuBookIcon /> },
-    { id: 'notifications', label: 'Notifications', icon: <NotificationsIcon />, badge: unreadCount || null },
-    { id: 'profile', label: 'My Profile', icon: <PersonIcon /> },
-    { id: 'settings', label: 'Settings', icon: <SettingsIcon /> },
-    { id: 'admin', label: 'Admin Panel', icon: <AdminPanelSettingsIcon />, admin: true },
-  ];
+  { id: 'dashboard', label: 'Dashboard', icon: <HomeIcon /> },
+  { id: 'lost-found', label: 'Lost & Found', icon: <LocationOnIcon /> },
+  { id: 'marketplace', label: 'Marketplace', icon: <ShoppingBagIcon /> },
+  { id: 'skills', label: 'Skill Exchange', icon: <BoltIcon /> },
+  { id: 'events', label: 'Events', icon: <EventIcon /> },
+  { id: 'notes', label: 'Notes', icon: <MenuBookIcon /> },
+  { id: 'notifications', label: 'Notifications', icon: <NotificationsIcon />, badge: unreadCount || null },
+  { id: 'profile', label: 'My Profile', icon: <PersonIcon /> },
+  { id: 'settings', label: 'Settings', icon: <SettingsIcon /> },
+  ...(currentUser?.role === 'admin' ? [{ id: 'admin', label: 'Admin Panel', icon: <AdminPanelSettingsIcon />, admin: true }] : []),
+];
 
   const handleAvatarClick = (event) => setAnchorEl(event.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
