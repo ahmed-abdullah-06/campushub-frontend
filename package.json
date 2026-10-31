@@ -22,8 +22,9 @@
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
-    "@babel/preset-env": "^8.0.2",
-    "@babel/preset-react": "^8.0.1",
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
+    "@babel/preset-react": "^7.29.7",
     "@eslint/js": "^10.0.1",
     "@secretlint/quick-start": "^13.0.4",
     "@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
@@ -52,5 +53,8 @@
     "src/**/*.{js,jsx}": [
       "npm run lint"
     ]
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
