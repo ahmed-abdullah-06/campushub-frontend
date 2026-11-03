@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Drawer, AppBar, Toolbar, Typography, InputBase,
   IconButton, Badge, Avatar, List, ListItem, ListItemButton,
   ListItemIcon, ListItemText, Chip, Divider, Menu, MenuItem,
-  ListItemIcon as MenuItemIcon, useMediaQuery
+  ListItemIcon as MenuItemIcon, useMediaQuery, Paper, InputAdornment, CircularProgress
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import NotificationsIcon from '@mui/icons-material/Notifications';
@@ -24,7 +24,10 @@ import { useTheme } from '@mui/material/styles';
 const drawerWidth = 240;
 
 export default function MainLayout({ currentScreen, onNavigate, children }) {
-  const { currentUser, notifications, logout } = useApp();
+  const {
+    currentUser, notifications, logout, dataLoading,
+    lostItems, marketplaceItems, events, notes, skills
+  } = useApp();
   const [anchorEl, setAnchorEl] = useState(null); // controls the top-right profile dropdown
   const menuOpen = Boolean(anchorEl);
 
@@ -34,6 +37,60 @@ export default function MainLayout({ currentScreen, onNavigate, children }) {
 
   const userName = currentUser ? currentUser.name : 'Student';
   const unreadCount = notifications ? notifications.filter(n => !(n.read || n.isRead)).length : 0;
+
+  // ---------------------------------------------------------------------
+  // Global search — searches across every loaded module at once and jumps
+  // to the matching screen when a result is picked.
+  // ---------------------------------------------------------------------
+  const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  const searchResults = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) return [];
+
+    const pick = (item, screen, label, extra, type) => {
+      const haystack = [label, extra, item.description, item.category, item.location,
+        item.subject, item.department, item.name, item.status].filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(q)) return null;
+      return { key: `${screen}-${item.id || item._id}`, screen, label, type, extra };
+    };
+
+    const results = [];
+    (lostItems || []).forEach(i => {
+      const r = pick(i, 'lost-found', i.title, i.location, 'Lost & Found'); if (r) results.push(r);
+    });
+    (marketplaceItems || []).forEach(i => {
+      const r = pick(i, 'marketplace', i.title, i.condition, 'Marketplace'); if (r) results.push(r);
+    });
+    (events || []).forEach(i => {
+      const r = pick(i, 'events', i.title, i.location, 'Event'); if (r) results.push(r);
+    });
+    (notes || []).forEach(i => {
+      const r = pick(i, 'notes', i.title, i.subject, 'Note'); if (r) results.push(r);
+    });
+    (skills || []).forEach(i => {
+      const skillsStr = [...(i.offeredSkills || []), ...(i.wantedSkills || [])].join(' ');
+      const r = pick(i, 'skills', i.userName, skillsStr, 'Skill Profile'); if (r) results.push(r);
+    });
+    return results.slice(0, 8);
+  }, [query, lostItems, marketplaceItems, events, notes, skills]);
+
+  const handleSearchPick = (result) => {
+    setQuery('');
+    setSearchOpen(false);
+    onNavigate(result.screen);
+  };
+
+  // Close the results dropdown when clicking anywhere outside the search box
+  useEffect(() => {
+    if (!searchOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (!e.target.closest?.('[data-campus-search]')) setSearchOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [searchOpen]);
 
   const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: <HomeIcon /> },
@@ -178,13 +235,68 @@ export default function MainLayout({ currentScreen, onNavigate, children }) {
                 <MenuIcon />
               </IconButton>
 
-              <Box sx={{
-                display: 'flex', alignItems: 'center', bgcolor: '#F9FAFB', px: 2, py: 0.5, borderRadius: 8,
-                width: { xs: '100%', sm: 260, md: 320 }, // shrinks on small screens instead of overflowing
-                maxWidth: '100%',
-              }}>
-                <SearchIcon sx={{ color: '#9CA3AF', mr: 1, fontSize: 20, flexShrink: 0 }} />
-                <InputBase placeholder="Search campus hub..." sx={{ fontSize: '0.875rem', width: '100%' }} />
+              <Box data-campus-search sx={{ position: 'relative', display: 'flex', alignItems: 'center', width: { xs: '100%', sm: 260, md: 320 }, maxWidth: '100%' }}>
+                <Box sx={{
+                  display: 'flex', alignItems: 'center', bgcolor: '#F9FAFB', px: 2, py: 0.5, borderRadius: 8,
+                  width: '100%', maxWidth: '100%',
+                  '&:focus-within': { boxShadow: '0 0 0 2px #EEF2FF' },
+                }}>
+                  <SearchIcon sx={{ color: '#9CA3AF', mr: 1, fontSize: 20, flexShrink: 0 }} />
+                  <InputBase
+                    placeholder="Search items, events, notes..."
+                    value={query}
+                    onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
+                    onFocus={() => setSearchOpen(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && searchResults.length > 0) handleSearchPick(searchResults[0]);
+                      if (e.key === 'Escape') { setSearchOpen(false); e.currentTarget.blur(); }
+                    }}
+                    endAdornment={
+                      dataLoading && query.trim().length >= 2 ? (
+                        <InputAdornment position="end"><CircularProgress size={16} /></InputAdornment>
+                      ) : null
+                    }
+                    sx={{ fontSize: '0.875rem', width: '100%' }}
+                  />
+                </Box>
+
+                {/* Cross-module search results */}
+                {searchOpen && query.trim().length >= 2 && (
+                  <Paper
+                    elevation={3}
+                    sx={{
+                      position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 1300,
+                      maxHeight: 340, overflowY: 'auto', borderRadius: 2, border: '1px solid #F3F4F6',
+                    }}
+                  >
+                    {searchResults.length === 0 ? (
+                      <Box sx={{ p: 2 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          {dataLoading ? 'Loading campus data…' : `No matches for “${query.trim()}”`}
+                        </Typography>
+                      </Box>
+                    ) : (
+                      searchResults.map((r) => (
+                        <Box
+                          key={r.key}
+                          onClick={() => handleSearchPick(r)}
+                          sx={{
+                            px: 2, py: 1.25, cursor: 'pointer', display: 'flex', alignItems: 'center',
+                            gap: 1.5, '&:hover': { bgcolor: '#F9FAFB' },
+                          }}
+                        >
+                          <Chip label={r.type} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem', flexShrink: 0 }} />
+                          <Box sx={{ minWidth: 0, flex: 1 }}>
+                            <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>{r.label}</Typography>
+                            {r.extra && (
+                              <Typography variant="caption" color="text.secondary" noWrap display="block">{r.extra}</Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      ))
+                    )}
+                  </Paper>
+                )}
               </Box>
             </Box>
 
@@ -233,7 +345,7 @@ export default function MainLayout({ currentScreen, onNavigate, children }) {
           </Toolbar>
         </AppBar>
 
-        <Box component="main" sx={{ p: { xs: 2, sm: 3, md: 4 }, flexGrow: 1, minWidth: 0 }}>
+        <Box component="main" sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, flexGrow: 1, minWidth: 0 }}>
           {children}
         </Box>
       </Box>
