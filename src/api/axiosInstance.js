@@ -1,23 +1,14 @@
 import axios from 'axios';
 
-let baseURL = 'http://localhost:5000/api';
-
-try {
-  const metaEnv = new Function('return import.meta.env')();
-  if (metaEnv && metaEnv.VITE_API_URL) {
-    baseURL = metaEnv.VITE_API_URL;
-  }
-} catch (e) {
-  if (typeof process !== 'undefined' && process.env && process.env.VITE_API_URL) {
-    baseURL = process.env.VITE_API_URL;
-  }
-}
+// Vite statically replaces `import.meta.env.VITE_API_URL` at build time and
+// provides it in dev. Falls back to the local backend when unset (e.g. tests).
+const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const axiosInstance = axios.create({
   baseURL,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
 // Auto-attach JWT token to requests if present in localStorage
