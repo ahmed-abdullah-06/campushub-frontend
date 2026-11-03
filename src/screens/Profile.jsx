@@ -194,7 +194,7 @@ export default function Profile() {
       <Grid container spacing={2}>
         {[
           { label: 'Role', val: roleLabel },
-          { label: 'Status', val: 'Active Member' },
+          { label: 'Status', val: currentUser?.status === 'suspended' ? 'Suspended' : 'Active Member' },
           { label: 'University', val: currentUser?.university || '—' },
         ].map((item, idx) => (
           <Grid size={4} key={idx}>

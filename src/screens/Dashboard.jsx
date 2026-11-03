@@ -1,20 +1,68 @@
 import React from 'react';
-import { Box, Grid, Card, Typography, Button, Avatar, Chip, Stack } from '@mui/material';
+import { Box, Grid, Card, Typography, Button, Avatar, Chip, Stack, Divider } from '@mui/material';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import EventIcon from '@mui/icons-material/Event';
 import BoltIcon from '@mui/icons-material/Bolt';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import { useApp } from '../context/AppContext';
+import { timeAgo, formatDate } from '../utils/format';
+
+const iconForType = (type) => {
+  switch (type) {
+    case 'lost': return <LocationOnIcon fontSize="small" />;
+    case 'market': return <ShoppingBagIcon fontSize="small" />;
+    case 'event': return <EventIcon fontSize="small" />;
+    case 'note': return <MenuBookIcon fontSize="small" />;
+    default: return <BoltIcon fontSize="small" />;
+  }
+};
 
 export default function Dashboard({ onNavigate }) {
-  const { currentUser, lostItems, marketplaceItems, events, skillRequests, notifications } = useApp();
+  const {
+    currentUser, lostItems, marketplaceItems, events, notes,
+    skillRequests, notifications, dataLoading
+  } = useApp();
 
   const userName = currentUser ? currentUser.name : 'Student';
-  const activePostsCount = (lostItems?.length || 0) + (marketplaceItems?.length || 0);
-  const unreadNotifsCount = notifications?.filter(n => !n.read)?.length || 0;
-  const eventsCount = events?.length || 0;
-  const pendingSkillReqsCount = skillRequests?.filter(s => s.status === 'pending')?.length || 0;
+  const activePostsCount = lostItems.filter((i) => i.status !== 'resolved').length;
+  const unreadNotifsCount = notifications.filter((n) => !n.read).length;
+  const pendingIncoming = skillRequests.filter(
+    (r) => r.status === 'pending' && (r.toUser?._id || r.toUser) === (currentUser?._id || currentUser?.id)
+  );
+  const upcomingEvents = [...events].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  // A real activity feed: the newest items across every module, newest first.
+  const activity = [
+    ...lostItems.map((i) => ({
+      kind: 'lost',
+      title: i.title,
+      sub: `${i.type === 'lost' ? 'Lost' : 'Found'} · ${i.location}`,
+      at: i.createdAt
+    })),
+    ...marketplaceItems.map((i) => ({
+      kind: 'market',
+      title: i.title,
+      sub: `Listed for $${i.price}`,
+      at: i.createdAt
+    })),
+    ...events.map((e) => ({
+      kind: 'event',
+      title: e.title,
+      sub: `${formatDate(e.date)} · ${e.location}`,
+      at: e.createdAt
+    })),
+    ...notes.map((n) => ({
+      kind: 'note',
+      title: n.title,
+      sub: `${n.courseCode} · ${n.department}`,
+      at: n.createdAt
+    }))
+  ]
+    .filter((a) => a.at)
+    .sort((a, b) => new Date(b.at) - new Date(a.at))
+    .slice(0, 6);
 
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
@@ -34,10 +82,11 @@ export default function Dashboard({ onNavigate }) {
         }}
       >
         <Box sx={{ zIndex: 1 }}>
-          <Typography variant="body2" sx={{ opacity: 0.8, mb: 0.5 }}>Good morning 👋</Typography>
+          <Typography variant="body2" sx={{ opacity: 0.8, mb: 0.5 }}>Welcome to CampusHub 👋</Typography>
           <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>Welcome back, {userName}!</Typography>
           <Typography variant="body2" sx={{ opacity: 0.9, mb: 3 }}>
-            You have <b>{pendingSkillReqsCount} pending skill requests</b> and <b>{unreadNotifsCount} unread notifications</b>.
+            You have <b>{pendingIncoming.length} pending skill request{pendingIncoming.length === 1 ? '' : 's'}</b> and{' '}
+            <b>{unreadNotifsCount} unread notification{unreadNotifsCount === 1 ? '' : 's'}</b>.
           </Typography>
           <Stack direction="row" spacing={2}>
             <Button
@@ -64,10 +113,10 @@ export default function Dashboard({ onNavigate }) {
       {/* Metrics Row */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         {[
-          { label: 'Active Items/Posts', val: String(activePostsCount), change: 'Live listings', icon: <ShoppingBagIcon color="primary" /> },
+          { label: 'Active Items/Posts', val: String(activePostsCount), change: 'Open listings', icon: <ShoppingBagIcon color="primary" /> },
           { label: 'Unread Notifications', val: String(unreadNotifsCount), change: '', icon: <LocationOnIcon color="error" /> },
-          { label: 'Campus Events', val: String(eventsCount), change: 'Available now', icon: <EventIcon color="secondary" /> },
-          { label: 'Skill Requests', val: String(pendingSkillReqsCount), change: 'Skill exchange', icon: <BoltIcon sx={{ color: '#7C3AED' }} /> },
+          { label: 'Campus Events', val: String(events.length), change: 'Available now', icon: <EventIcon color="secondary" /> },
+          { label: 'Incoming Requests', val: String(pendingIncoming.length), change: 'Skill exchange', icon: <BoltIcon sx={{ color: '#7C3AED' }} /> },
         ].map((stat, idx) => (
           <Grid size={{ xs: 12, sm: 6, md: 3 }} key={idx}>
             <Card sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -86,25 +135,38 @@ export default function Dashboard({ onNavigate }) {
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 8 }}>
           <Card sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>Recent Campus Activity</Typography>
-            <Stack spacing={2} divider={<Box sx={{ borderBottom: '1px solid #F3F4F6' }} />}>
-              {[
-                { title: 'Lost & Found Update', sub: 'New items added to campus hub', time: 'Recently', icon: <LocationOnIcon fontSize="small" /> },
-                { title: 'Skill exchange available', sub: 'Connect with peers on campus', time: 'Active', icon: <BoltIcon fontSize="small" /> },
-                { title: 'Student Marketplace', sub: 'Listings ready for trading', time: 'Active', icon: <ShoppingBagIcon fontSize="small" /> },
-              ].map((item, idx) => (
-                <Box key={idx} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Avatar sx={{ bgcolor: '#EEF2FF', color: 'primary.main', width: 36, height: 36 }}>{item.icon}</Avatar>
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.title}</Typography>
-                      <Typography variant="caption" color="text.secondary">{item.sub}</Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>Recent Campus Activity</Typography>
+              <Button size="small" endIcon={<ArrowForwardIcon />} onClick={() => onNavigate('lost-found')}>
+                Browse all
+              </Button>
+            </Box>
+            {activity.length === 0 ? (
+              <Box sx={{ py: 3, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  {dataLoading ? 'Loading the latest activity…' : 'Nothing here yet — post the first item to get your campus trading.'}
+                </Typography>
+              </Box>
+            ) : (
+              <Stack spacing={2} divider={<Divider />}>
+                {activity.map((item, idx) => (
+                  <Box key={idx} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0 }}>
+                      <Avatar sx={{ bgcolor: '#EEF2FF', color: 'primary.main', width: 36, height: 36 }}>
+                        {iconForType(item.kind)}
+                      </Avatar>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{item.title}</Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap display="block">{item.sub}</Typography>
+                      </Box>
                     </Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, ml: 1 }}>
+                      {timeAgo(item.at)}
+                    </Typography>
                   </Box>
-                  <Typography variant="caption" color="text.secondary">{item.time}</Typography>
-                </Box>
-              ))}
-            </Stack>
+                ))}
+              </Stack>
+            )}
           </Card>
         </Grid>
 
@@ -112,12 +174,30 @@ export default function Dashboard({ onNavigate }) {
           <Stack spacing={3}>
             {/* Registered Event Card */}
             <Card sx={{ overflow: 'hidden' }}>
-              <Box sx={{ height: 120, bgcolor: '#374151', position: 'relative', p: 1.5 }}>
-                <Chip label="Upcoming" color="primary" size="small" sx={{ fontWeight: 700 }} />
+              <Box sx={{ height: 120, position: 'relative', overflow: 'hidden' }}>
+                {upcomingEvents[0]?.image ? (
+                  <Box
+                    component="img"
+                    src={upcomingEvents[0].image}
+                    sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <Box sx={{ width: '100%', height: '100%', bgcolor: '#374151' }} />
+                )}
+                <Box sx={{ position: 'absolute', top: 12, left: 12 }}>
+                  <Chip label="Upcoming" color="primary" size="small" sx={{ fontWeight: 700 }} />
+                </Box>
               </Box>
               <Box sx={{ p: 2 }}>
                 <Typography variant="caption" color="text.secondary">Featured Event</Typography>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>{events[0]?.title || 'Campus Hackathon 2026'}</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }}>
+                  {upcomingEvents[0]?.title || 'No events announced yet'}
+                </Typography>
+                {upcomingEvents[0] && (
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                    {formatDate(upcomingEvents[0].date)} · {upcomingEvents[0].location}
+                  </Typography>
+                )}
                 <Button fullWidth variant="outlined" size="small" endIcon={<ArrowForwardIcon />} onClick={() => onNavigate('events')}>
                   Explore Events
                 </Button>

@@ -1,42 +1,52 @@
 import React, { useState } from 'react';
 import {
   Box, Card, Typography, Switch, FormControlLabel, Divider, Stack,
-  TextField, Button, Alert, Select, MenuItem, FormControl, InputLabel
+  TextField, Button, Alert, Select, MenuItem, FormControl, InputLabel,
+  CircularProgress
 } from '@mui/material';
 import { useApp } from '../context/AppContext';
 
 export default function Settings() {
-  const { currentUser, logout } = useApp();
+  const { currentUser, logout, saveSettings } = useApp();
 
-  const [emailNotifs, setEmailNotifs] = useState(true);
-  const [pushNotifs, setPushNotifs] = useState(true);
-  const [profileVisible, setProfileVisible] = useState(true);
-  const [language, setLanguage] = useState('en');
-  const [saved, setSaved] = useState(false);
+  const saved = currentUser?.settings || {};
+  const [emailNotifs, setEmailNotifs] = useState(saved.emailNotifs ?? true);
+  const [pushNotifs, setPushNotifs] = useState(saved.pushNotifs ?? true);
+  const [profileVisible, setProfileVisible] = useState(saved.profileVisible ?? true);
+  const [language, setLanguage] = useState(saved.language ?? 'en');
 
-  const handleSave = () => {
-    // No backend "settings" endpoint exists yet, so this persists locally for now.
-    // Once you add a PATCH /api/users/settings route, swap this for an api.js call.
-    localStorage.setItem('campushub_settings', JSON.stringify({
-      emailNotifs, pushNotifs, profileVisible, language
-    }));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState(null); // { type, text }
+
+  const handleSave = async () => {
+    setSaving(true);
+    setStatus(null);
+    // Persisted server-side on the account (PUT /api/users/settings),
+    // so the preferences follow the student to any device.
+    const result = await saveSettings({ emailNotifs, pushNotifs, profileVisible, language });
+    setSaving(false);
+    setStatus(
+      result.success
+        ? { type: 'success', text: 'Settings saved to your account.' }
+        : { type: 'error', text: result.message }
+    );
+    setTimeout(() => setStatus(null), 3000);
   };
 
   return (
     <Box sx={{ maxWidth: 700, mx: 'auto' }}>
       <Typography variant="h5" sx={{ fontWeight: 700, mb: 3 }}>Settings</Typography>
 
-      {saved && <Alert severity="success" sx={{ mb: 2 }}>Settings saved.</Alert>}
+      {status && <Alert severity={status.type} sx={{ mb: 2 }}>{status.text}</Alert>}
 
       <Card sx={{ p: 3, mb: 3 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>Account</Typography>
         <Stack spacing={2}>
           <TextField label="Full Name" value={currentUser?.name || ''} disabled fullWidth />
           <TextField label="Email" value={currentUser?.email || ''} disabled fullWidth />
+          <TextField label="Role" value={currentUser?.role || 'student'} disabled fullWidth />
           <Typography variant="caption" color="text.secondary">
-            To change your name or email, go to My Profile.
+            To change your name, email or role, go to <b>My Profile</b>.
           </Typography>
         </Stack>
       </Card>
@@ -78,8 +88,12 @@ export default function Settings() {
         </FormControl>
       </Card>
 
+      <Divider sx={{ mb: 2 }} />
+
       <Stack direction="row" spacing={2}>
-        <Button variant="contained" onClick={handleSave}>Save Changes</Button>
+        <Button variant="contained" onClick={handleSave} disabled={saving}>
+          {saving ? <CircularProgress size={18} /> : 'Save Changes'}
+        </Button>
         <Button variant="outlined" color="error" onClick={logout}>Sign Out</Button>
       </Stack>
     </Box>
