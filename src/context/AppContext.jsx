@@ -1,250 +1,204 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as api from '../api';
 
-const defaultUser = {
-  id: 'u1',
-  name: 'Alex Johnson',
-  email: 'alex.j@university.edu',
-  role: 'student',
-  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-  major: 'Computer Science',
-  year: 'Junior (Year 3)',
-  university: 'State University',
-  joinedDate: 'September 2023'
+// ---------------------------------------------------------------------------
+// Normalizers
+// The API returns MongoDB documents (_id, populated refs, isRead, ...).
+// Screens were written against a friendlier shape (id, postedBy, read, ...).
+// Converting here (in one place) keeps every screen simple and guarantees the
+// UI always reflects what the server actually returned.
+// ---------------------------------------------------------------------------
+
+const NOTIF_TITLES = {
+  claim: 'Lost & Found Claim',
+  'skill-request': 'Skill Exchange',
+  event: 'Event Update',
+  report: 'Content Report',
+  marketplace: 'Marketplace',
+  system: 'CampusHub'
 };
 
-const initialLost = [
-  {
-    id: 'lf_1',
-    title: 'Blue Leather Backpack',
-    category: 'Bags',
-    type: 'lost',
-    location: 'Central Library, 2nd Floor',
-    dateLost: '2026-08-24',
-    description: 'Left near quiet study room 204. Contains a MacBook Air with stickers and spiral notebooks.',
-    image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500',
-    status: 'active',
-    postedBy: defaultUser,
-    postedAt: '2 hours ago'
-  },
-  {
-    id: 'lf_2',
-    title: 'Apple AirPods Pro Case',
-    category: 'Electronics',
-    type: 'found',
-    location: 'Student Union Cafeteria',
-    dateLost: '2026-08-25',
-    description: 'Found on table near smoothie station. White wireless charging case with black protective cover.',
-    image: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=500',
-    status: 'active',
-    postedBy: defaultUser,
-    postedAt: '5 hours ago'
-  }
-];
+const normalizeLost = (doc) => ({
+  ...doc,
+  id: doc._id,
+  image: api.resolveFileUrl(doc.image),
+  postedBy: doc.user || null,
+  postedAt: doc.createdAt
+});
 
-const initialMarket = [
-  {
-    id: 'mp_1',
-    title: 'Calculus: Early Transcendentals (8th Ed)',
-    price: 45,
-    category: 'Books',
-    condition: 'Good',
-    description: 'Light highlighting on chapters 2-4. Binding intact. Great for MATH 101/102.',
-    image: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500',
-    status: 'available',
-    seller: defaultUser,
-    postedAt: '1 day ago'
-  },
-  {
-    id: 'mp_2',
-    title: 'Ergonomic Desk Chair',
-    price: 80,
-    category: 'Furniture',
-    condition: 'Like New',
-    description: 'Mesh back chair with lumbar support. Used for one semester. Moving out sale.',
-    image: 'https://images.unsplash.com/photo-1580481072645-022f9a6d1296?w=500',
-    status: 'available',
-    seller: defaultUser,
-    postedAt: '2 days ago'
-  }
-];
+const normalizeMarketItem = (doc) => ({
+  ...doc,
+  id: doc._id,
+  image: api.resolveFileUrl(doc.image),
+  postedAt: doc.createdAt
+});
 
-const initialEvents = [
-  {
-    id: 'ev_1',
-    title: 'Annual Campus Hackathon 2026',
-    description: '24-hour coding challenge. Build innovative projects, network with sponsors, and win prizes!',
-    date: '2026-09-15',
-    time: '09:00 AM',
-    endTime: '09:00 AM',
-    location: 'Engineering Complex, Hall A',
-    capacity: 200,
-    attendeeCount: 142,
-    category: 'Technology',
-    image: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=500',
-    organizer: defaultUser,
-    isRegistered: true
-  },
-  {
-    id: 'ev_2',
-    title: 'Career & Internship Fair',
-    description: 'Connect with top employers hiring for tech, business, and creative roles.',
-    date: '2026-09-20',
-    time: '10:00 AM',
-    endTime: '04:00 PM',
-    location: 'Student Activity Center',
-    capacity: 500,
-    attendeeCount: 310,
-    category: 'Career',
-    image: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=500',
-    organizer: defaultUser,
-    isRegistered: false
-  }
-];
+const normalizeEvent = (doc) => ({
+  ...doc,
+  id: doc._id,
+  image: api.resolveFileUrl(doc.image),
+  isRegistered: Boolean(doc.isRegistered),
+  organizerName: doc.organizerName || 'Student Community'
+});
 
-const initialNotes = [
-  {
-    id: 'n_1',
-    title: 'CS201 Data Structures Complete Study Guide',
-    courseCode: 'CS 201',
-    department: 'Computer Science',
-    description: 'Detailed summary of Trees, Graphs, Sorting algorithms, and Big-O notation.',
-    fileSize: '4.2 MB',
-    pages: 28,
-    downloads: 184,
-    rating: 4.9,
-    ratingCount: 32,
-    uploader: defaultUser,
-    uploadedAt: '3 days ago'
-  }
-];
+const normalizeNote = (doc) => ({
+  ...doc,
+  id: doc._id,
+  fileUrl: api.resolveFileUrl(doc.fileUrl),
+  subject: doc.department
+});
 
-const initialSkills = [
-  {
-    id: 'sk_1',
-    user: defaultUser,
-    userName: 'Alex Johnson',
-    major: 'Computer Science',
-    university: 'State University',
-    offeredSkills: ['React', 'Node.js', 'Python'],
-    wantedSkills: ['UI/UX Design', 'Figma', 'Public Speaking'],
-    rating: 4.9,
-    ratingCount: 15,
-    bio: 'CS Junior passionate about web dev and AI. Looking to learn Figma design principles!'
-  }
-];
+const normalizeSkill = (doc) => ({ ...doc, id: doc._id });
 
-const initialNotifs = [
-  {
-    id: 'notif_1',
-    title: 'Event Reminder',
-    message: 'Annual Campus Hackathon starts in 3 days!',
-    timestamp: '10 min ago',
-    read: false,
-    type: 'event'
-  }
-];
+const normalizeSkillRequest = (doc) => ({
+  ...doc,
+  id: doc._id,
+  fromUser: doc.fromUser || null,
+  toUser: doc.toUser || null
+});
 
-const initialReports = [
-  {
-    id: 'rep_1',
-    type: 'Marketplace Listing',
-    itemTitle: 'Suspiciously Low Price iPhone',
-    reason: 'Potential scam item',
-    status: 'pending',
-    reportedBy: 'Student'
-  }
-];
+const normalizeNotification = (doc) => ({
+  ...doc,
+  id: doc._id,
+  read: Boolean(doc.isRead),
+  title: NOTIF_TITLES[doc.type] || 'Notification'
+});
 
-const initialAdminUsers = [
-  { id: 'u1', name: 'Alex Johnson', email: 'alex.j@university.edu', role: 'student', university: 'State University', status: 'active' },
-  { id: 'u2', name: 'Sarah Miller', email: 'sarah.m@university.edu', role: 'student', university: 'State University', status: 'active' },
-  { id: 'u3', name: 'Admin Account', email: 'admin@campushub.edu', role: 'admin', university: 'State University', status: 'active' }
-];
+const normalizeReport = (doc) => ({
+  ...doc,
+  id: doc._id,
+  type: doc.targetType || 'Report',
+  itemTitle: doc.targetTitle || doc.reason,
+  reporterName: doc.reporter?.name || 'Student'
+});
+
+const normalizeUser = (user) => (user ? { ...user, id: user._id } : null);
 
 const AppContext = createContext(null);
 
 export const AppProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('user');
+      return saved ? normalizeUser(JSON.parse(saved)) : null;
+    } catch {
+      return null;
+    }
   });
-  const [authLoading, setAuthLoading] = useState(false); // localStorage read above is synchronous, so this is instant
-  
-  const [lostItems, setLostItems] = useState(initialLost);
-  const [marketplaceItems, setMarketplaceItems] = useState(initialMarket);
-  const [events, setEvents] = useState(initialEvents);
-  const [notes, setNotes] = useState(initialNotes);
-  const [skills, setSkills] = useState(initialSkills);
-  const [skillRequests, setSkillRequests] = useState([]);
-  const [notifications, setNotifications] = useState(initialNotifs);
-  const [adminReports, setAdminReports] = useState(initialReports);
-  const [adminUsers, setAdminUsers] = useState(initialAdminUsers);
+  const [authLoading, setAuthLoading] = useState(false);
 
-  // Sync with backend API on mount
-  useEffect(() => {
-    const loadBackendData = async () => {
-      try {
-        const [lfData, mpData, evData, ntData, skData, notifData, repData, usrData] = await Promise.allSettled([
-          api.fetchLostFoundItems(),
-          api.fetchMarketplaceItems(),
-          api.fetchEvents(),
-          api.fetchNotes(),
-          api.fetchSkills(),
-          api.fetchNotifications(),
+  // `null` while loading so screens can distinguish "loading" from "empty"
+  const [lostItems, setLostItems] = useState([]);
+  const [marketplaceItems, setMarketplaceItems] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [notes, setNotes] = useState([]);
+  const [skills, setSkills] = useState([]);
+  const [skillRequests, setSkillRequests] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [adminReports, setAdminReports] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [dataLoading, setDataLoading] = useState(false);
+
+  const userId = currentUser?._id || currentUser?.id;
+
+  const isAdmin = currentUser?.role === 'admin';
+
+  // ---------------------------------------------------------------------------
+  // Load everything the dashboard needs whenever a session exists
+  // ---------------------------------------------------------------------------
+  const loadAllData = useCallback(async () => {
+    if (!userId) return;
+    setDataLoading(true);
+    try {
+      const core = await Promise.allSettled([
+        api.fetchLostFoundItems(),
+        api.fetchMarketplaceItems(),
+        api.fetchEvents(),
+        api.fetchNotes(),
+        api.fetchSkills(),
+        api.fetchSkillRequests(),
+        api.fetchNotifications()
+      ]);
+      const [lf, mp, ev, nt, sk, sr, notif] = core;
+      if (lf.status === 'fulfilled' && Array.isArray(lf.value)) setLostItems(lf.value.map(normalizeLost));
+      if (mp.status === 'fulfilled' && Array.isArray(mp.value)) setMarketplaceItems(mp.value.map(normalizeMarketItem));
+      if (ev.status === 'fulfilled' && Array.isArray(ev.value)) setEvents(ev.value.map(normalizeEvent));
+      if (nt.status === 'fulfilled' && Array.isArray(nt.value)) setNotes(nt.value.map(normalizeNote));
+      if (sk.status === 'fulfilled' && Array.isArray(sk.value)) setSkills(sk.value.map(normalizeSkill));
+      if (sr.status === 'fulfilled' && Array.isArray(sr.value)) setSkillRequests(sr.value.map(normalizeSkillRequest));
+      if (notif.status === 'fulfilled' && Array.isArray(notif.value)) setNotifications(notif.value.map(normalizeNotification));
+
+      // Admin-only datasets — never request them as a student (403 noise)
+      if (isAdmin) {
+        const adminData = await Promise.allSettled([
           api.fetchAdminReports(),
           api.fetchAdminUsers()
         ]);
-
-        if (lfData.status === 'fulfilled' && Array.isArray(lfData.value)) setLostItems(lfData.value);
-        if (mpData.status === 'fulfilled' && Array.isArray(mpData.value)) setMarketplaceItems(mpData.value);
-        if (evData.status === 'fulfilled' && Array.isArray(evData.value)) setEvents(evData.value);
-        if (ntData.status === 'fulfilled' && Array.isArray(ntData.value)) setNotes(ntData.value);
-        if (skData.status === 'fulfilled' && Array.isArray(skData.value)) setSkills(skData.value);
-        if (notifData.status === 'fulfilled' && Array.isArray(notifData.value)) setNotifications(notifData.value);
-        if (repData.status === 'fulfilled' && Array.isArray(repData.value)) setAdminReports(repData.value);
-        if (usrData.status === 'fulfilled' && Array.isArray(usrData.value)) setAdminUsers(usrData.value);
-      } catch (err) {
-        console.warn('Backend API sync notice: running with current state cache.', err);
-      }
-    };
-
-    loadBackendData();
-  }, []);
-
-  // Authentication Actions
-  const login = async (email, password) => {
-    try {
-      const data = await api.loginUser({ email, password });
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data));
-        setCurrentUser(data);
-        return data;
+        const [rep, usr] = adminData;
+        if (rep.status === 'fulfilled' && Array.isArray(rep.value)) setAdminReports(rep.value.map(normalizeReport));
+        if (usr.status === 'fulfilled' && Array.isArray(usr.value)) setAdminUsers(usr.value);
       }
     } catch (err) {
-      // Fallback demo login
-      const demoUser = { ...defaultUser, email, role: email.includes('admin') ? 'admin' : 'student' };
-      setCurrentUser(demoUser);
-      localStorage.setItem('user', JSON.stringify(demoUser));
-      return demoUser;
+      console.warn('CampusHub: some data could not be loaded.', err);
+    } finally {
+      setDataLoading(false);
+    }
+  }, [userId, isAdmin]);
+
+  useEffect(() => {
+    loadAllData();
+  }, [loadAllData]);
+
+  // ---------------------------------------------------------------------------
+  // Authentication — NO silent demo fallback: failures surface to the UI
+  // so a broken backend can never masquerade as a successful login.
+  // ---------------------------------------------------------------------------
+  const persistSession = (data) => {
+    const user = normalizeUser(data);
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(user));
+    setCurrentUser(user);
+    return user;
+  };
+
+  const login = async (email, password) => {
+    setAuthLoading(true);
+    try {
+      const data = await api.loginUser({ email, password });
+      if (!data?.token) throw new Error('Login failed');
+      return persistSession(data);
+    } finally {
+      setAuthLoading(false);
     }
   };
 
   const register = async (name, email, password) => {
+    setAuthLoading(true);
     try {
       const data = await api.registerUser({ name, email, password });
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data));
-        setCurrentUser(data);
-        return data;
-      }
-    } catch (err) {
-      const demoUser = { ...defaultUser, name, email };
-      setCurrentUser(demoUser);
-      localStorage.setItem('user', JSON.stringify(demoUser));
-      return demoUser;
+      if (!data?.token) throw new Error('Registration failed');
+      return persistSession(data);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Requests a reset link for an email. The API always answers with the same
+  // generic message (never reveals whether the account exists).
+  const requestPasswordReset = async (email) => {
+    const data = await api.forgotPassword(email);
+    return { success: true, message: data?.message || 'If an account exists for that email, a password reset link has been sent.' };
+  };
+
+  // Completes the reset with the emailed token; the API logs the user in.
+  const completePasswordReset = async (token, password) => {
+    setAuthLoading(true);
+    try {
+      const data = await api.resetPassword(token, password);
+      if (!data?.token) throw new Error('Reset failed');
+      return persistSession(data);
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -252,197 +206,282 @@ export const AppProvider = ({ children }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setCurrentUser(null);
+    setLostItems([]);
+    setMarketplaceItems([]);
+    setEvents([]);
+    setNotes([]);
+    setSkills([]);
+    setSkillRequests([]);
+    setNotifications([]);
+    setAdminReports([]);
+    setAdminUsers([]);
   };
 
-  // Lost & Found Actions
+  const refreshData = () => loadAllData();
+
+  // ---------------------------------------------------------------------------
+  // Lost & Found
+  // ---------------------------------------------------------------------------
   const addLostItem = async (item) => {
-    const newItem = {
-      id: `lf_${Date.now()}`,
-      ...item,
-      status: 'active',
-      postedBy: currentUser,
-      postedAt: 'Just now'
-    };
-    setLostItems(prev => [newItem, ...prev]);
-    try {
-      await api.createLostFoundItem(item);
-    } catch (err) { console.error(err); }
-    return newItem;
+    const created = await api.createLostFoundItem(item);
+    const normalized = normalizeLost(created);
+    setLostItems((prev) => [normalized, ...prev]);
+    return normalized;
   };
 
-  const toggleLostStatus = async (id) => {
-    setLostItems(prev => prev.map(item =>
-      (item.id === id || item._id === id) ? { ...item, status: item.status === 'active' ? 'resolved' : 'active' } : item
-    ));
-    try {
-      await api.updateLostFoundStatus(id);
-    } catch (err) { console.error(err); }
+  const toggleLostStatus = async (id, status) => {
+    const updated = await api.updateLostFoundStatus(id, status);
+    const normalized = normalizeLost(updated);
+    setLostItems((prev) => prev.map((item) => (item.id === id ? normalized : item)));
+    return normalized;
   };
 
-  // Marketplace Actions
+  const claimLostItem = async (id, message) => {
+    const updated = await api.claimLostFoundItem(id, message);
+    const normalized = normalizeLost(updated);
+    setLostItems((prev) => prev.map((item) => (item.id === id ? normalized : item)));
+    return normalized;
+  };
+
+  const releaseLostClaim = async (id) => {
+    const updated = await api.releaseLostFoundClaim(id);
+    const normalized = normalizeLost(updated);
+    setLostItems((prev) => prev.map((item) => (item.id === id ? normalized : item)));
+    return normalized;
+  };
+
+  // ---------------------------------------------------------------------------
+  // Marketplace
+  // ---------------------------------------------------------------------------
   const addMarketplaceItem = async (item) => {
-    const newItem = {
-      id: `mp_${Date.now()}`,
-      ...item,
-      price: Number(item.price),
-      status: 'available',
-      seller: currentUser,
-      postedAt: 'Just now'
-    };
-    setMarketplaceItems(prev => [newItem, ...prev]);
-    try {
-      await api.createMarketplaceItem(item);
-    } catch (err) { console.error(err); }
-    return newItem;
+    const created = await api.createMarketplaceItem({ ...item, price: Number(item.price) });
+    const normalized = normalizeMarketItem(created);
+    setMarketplaceItems((prev) => [normalized, ...prev]);
+    return normalized;
   };
 
   const markMarketplaceSold = async (id) => {
-    setMarketplaceItems(prev => prev.map(item => (item.id === id || item._id === id) ? { ...item, status: 'sold' } : item));
-    try {
-      await api.updateMarketplaceStatus(id, 'sold');
-    } catch (err) { console.error(err); }
+    const updated = await api.updateMarketplaceStatus(id, 'sold');
+    const normalized = normalizeMarketItem(updated);
+    setMarketplaceItems((prev) => prev.map((item) => (item.id === id ? normalized : item)));
+    return normalized;
   };
 
-  // Event Actions
+  const contactSeller = async (id, message) => api.contactSeller(id, message);
+
+  // ---------------------------------------------------------------------------
+  // Events
+  // ---------------------------------------------------------------------------
   const addEvent = async (event) => {
-    const newEvent = {
-      id: `ev_${Date.now()}`,
-      ...event,
-      capacity: Number(event.capacity),
-      attendeeCount: 1,
-      organizer: currentUser,
-      isRegistered: true,
-      category: event.category || 'Academic'
-    };
-    setEvents(prev => [newEvent, ...prev]);
-    try {
-      await api.createEvent(event);
-    } catch (err) { console.error(err); }
-    return newEvent;
+    const created = await api.createEvent(event);
+    const normalized = normalizeEvent(created);
+    setEvents((prev) => [normalized, ...prev]);
+    return normalized;
   };
 
   const toggleEventRegister = async (id) => {
-    setEvents(prev => prev.map(e => {
-      if (e.id === id || e._id === id) {
-        const isReg = e.isRegistered;
-        return {
-          ...e,
-          isRegistered: !isReg,
-          attendeeCount: isReg ? Math.max(0, (e.attendeeCount || 1) - 1) : (e.attendeeCount || 0) + 1
-        };
-      }
-      return e;
-    }));
-    try {
-      await api.toggleEventRegisterApi(id);
-    } catch (err) { console.error(err); }
+    const updated = await api.toggleEventRegisterApi(id);
+    const normalized = normalizeEvent(updated);
+    setEvents((prev) => prev.map((e) => (e.id === id ? normalized : e)));
+    return normalized;
   };
 
-  // Notes Actions
+  // ---------------------------------------------------------------------------
+  // Notes
+  // ---------------------------------------------------------------------------
   const addNote = async (note) => {
-    const newNote = {
-      id: `n_${Date.now()}`,
-      ...note,
-      pages: Number(note.pages) || 5,
-      uploader: currentUser,
-      fileSize: '2.4 MB',
-      downloads: 0,
-      rating: 5.0,
-      ratingCount: 1,
-      uploadedAt: 'Just now'
-    };
-    setNotes(prev => [newNote, ...prev]);
-    try {
-      await api.createNote(note);
-    } catch (err) { console.error(err); }
-    return newNote;
+    const created = await api.createNote(note);
+    const normalized = normalizeNote(created);
+    setNotes((prev) => [normalized, ...prev]);
+    return normalized;
   };
 
-  // Skill Actions
-  const sendSkillRequest = async (targetUser, offered, wanted, message) => {
-    const newReq = {
-      id: `sr_${Date.now()}`,
-      fromUser: currentUser,
-      toUser: targetUser,
+  const downloadNote = async (id) => {
+    const updated = await api.incrementNoteDownload(id);
+    const normalized = normalizeNote(updated);
+    setNotes((prev) => prev.map((n) => (n.id === id ? normalized : n)));
+    return normalized;
+  };
+
+  const rateNote = async (id, rating) => {
+    const updated = await api.rateNote(id, rating);
+    const normalized = normalizeNote(updated);
+    setNotes((prev) => prev.map((n) => (n.id === id ? normalized : n)));
+    return normalized;
+  };
+
+  // ---------------------------------------------------------------------------
+  // Skill Exchange
+  // ---------------------------------------------------------------------------
+  const saveMySkillProfile = async (profile) => {
+    const saved = await api.saveMySkillProfile(profile);
+    const normalized = normalizeSkill(saved);
+    setSkills((prev) => {
+      const withoutMine = prev.filter((s) => s.id !== normalized.id && s.user?._id !== userId);
+      return [normalized, ...withoutMine];
+    });
+    return normalized;
+  };
+
+  const sendSkillRequest = async (targetUserId, offered, wanted, message) => {
+    const created = await api.sendSkillRequestApi({
+      toUser: targetUserId,
       skillOffered: offered,
       skillWanted: wanted,
-      message,
-      status: 'pending',
-      sentAt: new Date().toISOString()
-    };
-    setSkillRequests(prev => [...prev, newReq]);
-    try {
-      await api.sendSkillRequestApi({ toUser: targetUser, skillOffered: offered, skillWanted: wanted, message });
-    } catch (err) { console.error(err); }
+      message
+    });
+    const normalized = normalizeSkillRequest(created);
+    setSkillRequests((prev) => [normalized, ...prev]);
+    return normalized;
   };
 
   const respondSkillRequest = async (id, status) => {
-    setSkillRequests(prev => prev.map(r => (r.id === id || r._id === id) ? { ...r, status } : r));
-    try {
-      await api.respondSkillRequestApi(id, status);
-    } catch (err) { console.error(err); }
+    const updated = await api.respondSkillRequestApi(id, status);
+    const normalized = normalizeSkillRequest(updated);
+    setSkillRequests((prev) => prev.map((r) => (r.id === id ? normalized : r)));
+    return normalized;
   };
 
-  // Notifications Actions
+  // ---------------------------------------------------------------------------
+  // Notifications
+  // ---------------------------------------------------------------------------
   const markNotificationRead = async (id) => {
-    setNotifications(prev => prev.map(n => (n.id === id || n._id === id) ? { ...n, read: true } : n));
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     try {
       await api.markNotificationRead(id);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.warn('Could not mark notification as read', err);
+    }
   };
 
   const markAllNotificationsRead = async () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     try {
       await api.markAllNotificationsRead();
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.warn('Could not mark notifications as read', err);
+    }
   };
 
   const dismissNotification = async (id) => {
-    setNotifications(prev => prev.filter(n => n.id !== id && n._id !== id));
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
     try {
       await api.dismissNotification(id);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.warn('Could not dismiss notification', err);
+    }
   };
 
-  // Admin Actions
+  // ---------------------------------------------------------------------------
+  // Reports (students) + Admin
+  // ---------------------------------------------------------------------------
+  const submitReport = async ({ targetType, targetId, reason }) => {
+    const created = await api.createReport({ targetType, targetId, reason });
+    return created;
+  };
+
   const resolveAdminReport = async (id, status) => {
-    setAdminReports(prev => prev.map(r => (r.id === id || r._id === id) ? { ...r, status } : r));
-    try {
-      await api.resolveAdminReportApi(id, status);
-    } catch (err) { console.error(err); }
+    const updated = await api.resolveAdminReportApi(id, status);
+    setAdminReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: updated.status } : r)));
+    return updated;
+  };
+
+  const removeReportedContent = async (id) => {
+    const result = await api.removeReportedContentApi(id);
+    setAdminReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'reviewed' } : r)));
+    return result;
   };
 
   const toggleUserSuspend = async (id) => {
-    setAdminUsers(prev => prev.map(u => (u.id === id || u._id === id) ? { ...u, status: u.status === 'active' ? 'suspended' : 'active' } : u));
-    try {
-      await api.toggleUserSuspendApi(id);
-    } catch (err) { console.error(err); }
+    const updated = await api.toggleUserSuspendApi(id);
+    setAdminUsers((prev) => prev.map((u) => ((u._id || u.id) === id ? { ...u, status: updated.status } : u)));
+    return updated;
   };
-  
+
+  // ---------------------------------------------------------------------------
+  // Profile + Settings
+  // ---------------------------------------------------------------------------
   const updateProfile = async (updates) => {
-  try {
-    const data = await api.updateProfile(updates);
-    setCurrentUser(data);
-    localStorage.setItem('user', JSON.stringify(data));
-    return { success: true };
-  } catch (err) {
-    return { success: false, message: err.response?.data?.message || 'Failed to update profile' };
-  }
-};
+    try {
+      const data = await api.updateProfile(updates);
+      const user = normalizeUser(data);
+      localStorage.setItem('user', JSON.stringify(user));
+      setCurrentUser(user);
+      return { success: true };
+    } catch (err) {
+      return { success: false, message: err.response?.data?.message || 'Failed to update profile' };
+    }
+  };
 
+  const saveSettings = async (settings) => {
+    try {
+      const data = await api.updateSettings(settings);
+      const user = { ...currentUser, settings: data.settings };
+      localStorage.setItem('user', JSON.stringify(user));
+      setCurrentUser(user);
+      return { success: true };
+    } catch (err) {
+      return { success: false, message: err.response?.data?.message || 'Failed to save settings' };
+    }
+  };
 
-    return (
-    <AppContext.Provider value={{
-      currentUser, authLoading,updateProfile, login, register, logout, setCurrentUser,
-      lostItems, addLostItem, toggleLostStatus,
-      marketplaceItems, addMarketplaceItem, markMarketplaceSold,
-      events, addEvent, toggleEventRegister,
-      notes, addNote,
-      skills, skillRequests, sendSkillRequest, respondSkillRequest,
-      notifications, markNotificationRead, markAllNotificationsRead, dismissNotification,
-      adminReports, resolveAdminReport, adminUsers, toggleUserSuspend
-    }}>
+  return (
+    <AppContext.Provider
+      value={{
+        currentUser,
+        authLoading,
+        dataLoading,
+        setCurrentUser,
+        login,
+        register,
+        requestPasswordReset,
+        completePasswordReset,
+        logout,
+        refreshData,
+
+        lostItems,
+        addLostItem,
+        toggleLostStatus,
+        claimLostItem,
+        releaseLostClaim,
+
+        marketplaceItems,
+        addMarketplaceItem,
+        markMarketplaceSold,
+        contactSeller,
+
+        events,
+        addEvent,
+        toggleEventRegister,
+
+        notes,
+        addNote,
+        downloadNote,
+        rateNote,
+
+        skills,
+        skillRequests,
+        saveMySkillProfile,
+        sendSkillRequest,
+        respondSkillRequest,
+
+        notifications,
+        markNotificationRead,
+        markAllNotificationsRead,
+        dismissNotification,
+
+        submitReport,
+
+        adminReports,
+        resolveAdminReport,
+        removeReportedContent,
+        adminUsers,
+        toggleUserSuspend,
+
+        updateProfile,
+        saveSettings
+      }}
+    >
       {children}
     </AppContext.Provider>
   );
