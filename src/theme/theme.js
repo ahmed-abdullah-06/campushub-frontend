@@ -23,26 +23,40 @@ const theme = createTheme({
       secondary: '#6B7280',
     },
   },
+  // Compact scale: MUI's defaults render quite large on a laptop; these sizes
+  // keep everything readable but noticeably denser and "normal".
   typography: {
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-    h1: { fontFamily: "'Outfit', sans-serif", fontWeight: 700 },
-    h2: { fontFamily: "'Outfit', sans-serif", fontWeight: 700 },
-    h3: { fontFamily: "'Outfit', sans-serif", fontWeight: 600 },
-    h4: { fontFamily: "'Outfit', sans-serif", fontWeight: 600 },
-    h5: { fontFamily: "'Outfit', sans-serif", fontWeight: 600 },
-    h6: { fontFamily: "'Outfit', sans-serif", fontWeight: 600 },
+    htmlFontSize: 16,
+    h1: { fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: '2rem' },
+    h2: { fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: '1.7rem' },
+    h3: { fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: '1.45rem' },
+    h4: { fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: '1.25rem' },
+    h5: { fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: '1.1rem' },
+    h6: { fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: '1rem' },
+    body1: { fontSize: '0.875rem' },
+    body2: { fontSize: '0.8125rem' },
+    subtitle1: { fontSize: '0.875rem' },
+    subtitle2: { fontSize: '0.8125rem' },
+    button: { fontSize: '0.8125rem' },
+    caption: { fontSize: '0.6875rem' },
+    overline: { fontSize: '0.625rem' },
   },
   shape: {
-    borderRadius: 12, // Match rounded UI cards
+    borderRadius: 10, // Match rounded UI cards
   },
   components: {
     MuiButton: {
+      defaultProps: {
+        size: 'small',
+      },
       styleOverrides: {
         root: {
           textTransform: 'none',
           borderRadius: '8px',
           fontWeight: 600,
           boxShadow: 'none',
+          paddingInline: 14,
           '&:hover': {
             boxShadow: '0px 2px 4px rgba(79, 70, 229, 0.2)',
           },
@@ -58,11 +72,18 @@ const theme = createTheme({
         },
       },
     },
+    MuiTextField: {
+      defaultProps: {
+        size: 'small',
+      },
+    },
     MuiChip: {
       styleOverrides: {
         root: {
           fontWeight: 600,
           borderRadius: '20px',
+          height: 22,
+          fontSize: '0.75rem',
         },
       },
     },
